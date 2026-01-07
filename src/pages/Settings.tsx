@@ -31,7 +31,7 @@ export function Settings() {
         <Card>
           <CardHeader>
             <CardTitle>Relay Configuration</CardTitle>
-            <CardDescription>Choose which Nostr relay to connect to</CardDescription>
+            <CardDescription>Enable or disable relays in your Nostr relay pool</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">

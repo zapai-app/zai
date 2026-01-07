@@ -2,11 +2,18 @@ import { createContext } from "react";
 
 export type Theme = "dark" | "light" | "system";
 
+export interface RelayConfigItem {
+  /** Relay WebSocket URL (wss://...) */
+  url: string;
+  /** Whether this relay is enabled for reads/writes */
+  enabled: boolean;
+}
+
 export interface AppConfig {
   /** Current theme */
   theme: Theme;
-  /** Selected relay URL */
-  relayUrl: string;
+  /** Relay pool configuration */
+  relays: RelayConfigItem[];
 }
 
 export interface AppContextType {

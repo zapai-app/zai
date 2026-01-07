@@ -24,16 +24,9 @@ interface RelaySelectorProps {
 export function RelaySelector(props: RelaySelectorProps) {
   const { className } = props;
   const { config, updateConfig, presetRelays = [] } = useAppContext();
-  
-  const selectedRelay = config.relayUrl;
-  const setSelectedRelay = (relay: string) => {
-    updateConfig((current) => ({ ...current, relayUrl: relay }));
-  };
 
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
-
-  const selectedOption = presetRelays.find((option) => option.url === selectedRelay);
 
   // Function to normalize relay URL by adding wss:// if no protocol is present
   const normalizeRelayUrl = (url: string): string => {
@@ -49,9 +42,47 @@ export function RelaySelector(props: RelaySelectorProps) {
     return `wss://${trimmed}`;
   };
 
+  const enabledRelays = config.relays.filter((r) => r.enabled);
+
+  const getRelayLabel = (): string => {
+    if (enabledRelays.length === 0) return 'No relays enabled';
+    if (enabledRelays.length === 1) return enabledRelays[0].url.replace(/^wss?:\/\//, '');
+    return `${enabledRelays.length} relays enabled`;
+  };
+
+  const upsertRelay = (rawUrl: string, enabled: boolean) => {
+    const url = normalizeRelayUrl(rawUrl);
+    if (!url) return;
+
+    updateConfig((current) => {
+      const normalized = normalizeRelayUrl(url);
+      const existing = current.relays.find((r) => r.url === normalized);
+      const enabledCount = current.relays.filter((r) => r.enabled).length;
+
+      // Don't allow disabling the last enabled relay
+      if (existing && existing.enabled && !enabled && enabledCount <= 1) {
+        return current;
+      }
+
+      if (existing) {
+        return {
+          ...current,
+          relays: current.relays.map((r) =>
+            r.url === normalized ? { ...r, enabled } : r
+          ),
+        };
+      }
+
+      return {
+        ...current,
+        relays: [...current.relays, { url: normalized, enabled: true }],
+      };
+    });
+  };
+
   // Handle adding a custom relay
   const handleAddCustomRelay = (url: string) => {
-    setSelectedRelay?.(normalizeRelayUrl(url));
+    upsertRelay(url, true);
     setOpen(false);
     setInputValue("");
   };
@@ -83,12 +114,7 @@ export function RelaySelector(props: RelaySelectorProps) {
           <div className="flex items-center gap-2">
             <Wifi className="h-4 w-4" />
             <span className="truncate">
-              {selectedOption 
-                ? selectedOption.name 
-                : selectedRelay 
-                  ? selectedRelay.replace(/^wss?:\/\//, '')
-                  : "Select relay..."
-              }
+              {getRelayLabel()}
             </span>
           </div>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -122,35 +148,69 @@ export function RelaySelector(props: RelaySelectorProps) {
                 </div>
               )}
             </CommandEmpty>
-            <CommandGroup>
-              {presetRelays
-                .filter((option) => 
-                  !inputValue || 
-                  option.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-                  option.url.toLowerCase().includes(inputValue.toLowerCase())
+            <CommandGroup heading="Enabled">
+              {enabledRelays
+                .filter((r) =>
+                  !inputValue ||
+                  r.url.toLowerCase().includes(inputValue.toLowerCase())
                 )
-                .map((option) => (
+                .map((relay) => (
                   <CommandItem
-                    key={option.url}
-                    value={option.url}
+                    key={relay.url}
+                    value={relay.url}
                     onSelect={(currentValue) => {
-                      setSelectedRelay(normalizeRelayUrl(currentValue));
-                      setOpen(false);
-                      setInputValue("");
+                      upsertRelay(currentValue, false);
                     }}
                   >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        selectedRelay === option.url ? "opacity-100" : "opacity-0"
-                      )}
-                    />
+                    <Check className={cn("mr-2 h-4 w-4", "opacity-100")} />
                     <div className="flex flex-col">
-                      <span className="font-medium">{option.name}</span>
-                      <span className="text-xs text-muted-foreground">{option.url}</span>
+                      <span className="font-medium">
+                        {presetRelays.find((p) => p.url === relay.url)?.name ?? relay.url.replace(/^wss?:\/\//, '')}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{relay.url}</span>
                     </div>
                   </CommandItem>
                 ))}
+            </CommandGroup>
+
+            <CommandGroup heading="Available">
+              {[...new Map([
+                ...presetRelays.map((p) => [normalizeRelayUrl(p.url), p] as const),
+                ...config.relays.map((r) => [normalizeRelayUrl(r.url), { url: r.url, name: r.url }] as const),
+              ]).values()]
+                .filter((option) => {
+                  const url = normalizeRelayUrl(option.url);
+                  if (!url) return false;
+                  const alreadyEnabled = enabledRelays.some((r) => r.url === url);
+                  if (alreadyEnabled) return false;
+                  if (!inputValue) return true;
+                  const name = ('name' in option && typeof option.name === 'string') ? option.name : '';
+                  return (
+                    name.toLowerCase().includes(inputValue.toLowerCase()) ||
+                    url.toLowerCase().includes(inputValue.toLowerCase())
+                  );
+                })
+                .map((option) => {
+                  const url = normalizeRelayUrl(option.url);
+                  const name = ('name' in option && typeof option.name === 'string') ? option.name : undefined;
+                  if (!url) return null;
+                  return (
+                    <CommandItem
+                      key={url}
+                      value={url}
+                      onSelect={(currentValue) => {
+                        upsertRelay(currentValue, true);
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", "opacity-0")} />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{name ?? url.replace(/^wss?:\/\//, '')}</span>
+                        <span className="text-xs text-muted-foreground">{url}</span>
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+
               {inputValue && isValidRelayInput(inputValue) && (
                 <CommandItem
                   onSelect={() => handleAddCustomRelay(inputValue)}

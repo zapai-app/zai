@@ -202,12 +202,13 @@ export function useZaps(
       const zapAmount = amount * 1000; // convert to millisats
 
       let zapRequest;
+      const enabledRelayUrls = config.relays.filter((r) => r.enabled).map((r) => r.url);
       if (actualTarget) {
         // Zap to specific event
         zapRequest = nip57.makeZapRequest({
           event: actualTarget as Event,
           amount: zapAmount,
-          relays: [config.relayUrl],
+          relays: enabledRelayUrls,
           comment
         });
       } else {
@@ -218,7 +219,7 @@ export function useZaps(
           tags: [
             ['p', recipientPubkey!],
             ['amount', zapAmount.toString()],
-            ['relays', ...config.relayUrl ? [config.relayUrl] : []],
+            ['relays', ...enabledRelayUrls],
           ],
           created_at: Math.floor(Date.now() / 1000),
         };

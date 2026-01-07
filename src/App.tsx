@@ -32,14 +32,23 @@ const queryClient = new QueryClient({
 
 const defaultConfig: AppConfig = {
   theme: "dark",
-  relayUrl: "wss://relay.primal.net",
+  relays: [
+    { url: 'wss://nostr-01.yakihonne.com', enabled: true },
+    { url: 'wss://nostr-02.yakihonne.com', enabled: true },
+    { url: 'wss://relay.damus.io', enabled: true },
+    { url: 'wss://relay.angor.io', enabled: true },
+    { url: 'wss://relay.primal.net', enabled: true },
+    { url: 'wss://nos.lol', enabled: true },
+  ],
 };
 
 const presetRelays = [
-  { url: 'wss://ditto.pub/relay', name: 'Ditto' },
-  { url: 'wss://relay.nostr.band', name: 'Nostr.Band' },
+  { url: 'wss://nostr-01.yakihonne.com', name: 'Yakihonne 01' },
+  { url: 'wss://nostr-02.yakihonne.com', name: 'Yakihonne 02' },
   { url: 'wss://relay.damus.io', name: 'Damus' },
+  { url: 'wss://relay.angor.io', name: 'Angor' },
   { url: 'wss://relay.primal.net', name: 'Primal' },
+  { url: 'wss://nos.lol', name: 'nos.lol' },
 ];
 
 export function App() {

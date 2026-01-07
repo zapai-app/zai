@@ -14,7 +14,18 @@ interface AppProviderProps {
 }
 
 // Zod schema for AppConfig validation
+const RelayConfigItemSchema = z.object({
+  url: z.string().url(),
+  enabled: z.boolean(),
+});
+
 const AppConfigSchema: z.ZodType<AppConfig, z.ZodTypeDef, unknown> = z.object({
+  theme: z.enum(['dark', 'light', 'system']),
+  relays: z.array(RelayConfigItemSchema).min(1),
+});
+
+// Legacy schema kept for migration
+const LegacyAppConfigSchema = z.object({
   theme: z.enum(['dark', 'light', 'system']),
   relayUrl: z.string().url(),
 });
@@ -34,8 +45,35 @@ export function AppProvider(props: AppProviderProps) {
     {
       serialize: JSON.stringify,
       deserialize: (value: string) => {
-        const parsed = JSON.parse(value);
-        return AppConfigSchema.parse(parsed);
+        try {
+          const parsed = JSON.parse(value);
+
+          // 1) New config
+          const parsedNew = AppConfigSchema.safeParse(parsed);
+          if (parsedNew.success) {
+            // Defensive: ensure at least one enabled relay
+            const hasEnabled = parsedNew.data.relays.some((r) => r.enabled);
+            if (hasEnabled) return parsedNew.data;
+            return {
+              ...parsedNew.data,
+              relays: parsedNew.data.relays.map((r, i) => ({ ...r, enabled: i === 0 })),
+            };
+          }
+
+          // 2) Legacy config migration
+          const parsedLegacy = LegacyAppConfigSchema.safeParse(parsed);
+          if (parsedLegacy.success) {
+            return {
+              theme: parsedLegacy.data.theme,
+              relays: [{ url: parsedLegacy.data.relayUrl, enabled: true }],
+            };
+          }
+
+          // 3) Fallback
+          return defaultConfig;
+        } catch {
+          return defaultConfig;
+        }
       }
     }
   );

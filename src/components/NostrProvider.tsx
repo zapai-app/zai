@@ -10,7 +10,7 @@ interface NostrProviderProps {
 
 const NostrProvider: React.FC<NostrProviderProps> = (props) => {
   const { children } = props;
-  const { config, presetRelays } = useAppContext();
+  const { config } = useAppContext();
 
   const queryClient = useQueryClient();
 
@@ -18,13 +18,14 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
   const pool = useRef<NPool | undefined>(undefined);
 
   // Use refs so the pool always has the latest data
-  const relayUrl = useRef<string>(config.relayUrl);
+  const relayUrls = useRef<string[]>(config.relays.filter((r) => r.enabled).map((r) => r.url));
 
   // Update refs when config changes
   useEffect(() => {
-    relayUrl.current = config.relayUrl;
+    const enabled = config.relays.filter((r) => r.enabled).map((r) => r.url);
+    relayUrls.current = enabled.length > 0 ? enabled : config.relays.slice(0, 1).map((r) => r.url);
     queryClient.resetQueries();
-  }, [config.relayUrl, queryClient]);
+  }, [config.relays, queryClient]);
 
   // Initialize NPool only once
   if (!pool.current) {
@@ -33,22 +34,11 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
         return new NRelay1(url);
       },
       reqRouter(filters) {
-        return new Map([[relayUrl.current, filters]]);
+        return new Map(relayUrls.current.map((url) => [url, filters] as const));
       },
       eventRouter(_event: NostrEvent) {
-        // Publish to the selected relay
-        const allRelays = new Set<string>([relayUrl.current]);
-
-        // Also publish to the preset relays, capped to 5
-        for (const { url } of (presetRelays ?? [])) {
-          allRelays.add(url);
-
-          if (allRelays.size >= 5) {
-            break;
-          }
-        }
-
-        return [...allRelays];
+        // Publish to the configured relay pool
+        return relayUrls.current;
       },
     });
   }
